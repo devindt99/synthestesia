@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Synthestesia</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.31/Tone.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/midi-writer-js@3.1.1/browser/midiwriter.min.js"></script>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <h1>Synthestesia</h1>
+  </header>
+
+  <!-- Main Section -->
+  <section class="form">
+    <textarea class="form__input" id="melodyString" rows="5" placeholder="Type some text to turn it into a melody..."></textarea>
+
+    <div class="form__controls">
+
+      <div class="form__buttons">
+        <button class="button button--play" id="playButton">Play Melody</button>
+        <button class="button button--export" id="exportMidiButton">Export as MIDI</button>
+      </div>
+      <div class="form__bpm-wrapper">
+        <label for="bpmInput" class="form__bpm-label">BPM</label>
+        <input class="form__input form__input--bpm" id="bpmInput" type="number" value="120" />
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer__wrapper">
+      <p class="footer__message">Synthestesia is free, but donations help me improve it and work on other cool projects!</p>
+      <button class="footer__donate-button">
+        <a href="https://www.paypal.com/donate/?hosted_button_id=6KNQRRKLMFZPC" target="_blank" class="footer__donate-link">
+          <img src="https://www.paypalobjects.com/webstatic/icon/pp258.png" alt="PayPal" class="footer__paypal-logo" />
+          Donate via PayPal
+        </a>
+      </button>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+
+</body>
+</html>
