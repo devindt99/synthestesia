@@ -219,6 +219,56 @@ document.getElementById('stopButton').addEventListener('click', () => {
   stopMelody();
 });
 
+// Function to export the melody as MIDI, adding rests using the wait attribute
+function exportMelodyToMIDI(melody, bpm) {
+  const track = new MidiWriter.Track();
+
+  // Set the tempo
+  track.setTempo(bpm);
+
+  let accumulatedWait = [];  // To accumulate multiple rest durations
+
+  melody.forEach((item) => {
+    if (item.note === null) {
+      // Add the rest duration to the accumulatedWait
+      accumulatedWait.push(convertToMidiDuration(item.duration));
+    } else if (Array.isArray(item)) {
+      const notes = item.map(n => n.note);  // Keep the full note, including octave
+      track.addEvent(new MidiWriter.NoteEvent({ pitch: notes, duration: convertToMidiDuration(item[0].duration), wait: accumulatedWait }));
+      accumulatedWait = [];  // Reset the accumulatedWait after adding a note
+    } else {
+      // Add a single note with the accumulated wait time
+      track.addEvent(new MidiWriter.NoteEvent({ pitch: item.note, duration: convertToMidiDuration(item.duration), wait: accumulatedWait }));
+      accumulatedWait = [];  // Reset the accumulatedWait after adding a note
+    }
+  });
+
+  // Create a write object and download the MIDI file
+  const write = new MidiWriter.Writer(track);
+  const midiData = write.buildFile();
+  const blob = new Blob([midiData], { type: 'audio/midi' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'melody.mid';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+
+// Convert Tone.js durations to MIDI-compatible durations
+function convertToMidiDuration(duration) {
+  const durationMap = {
+    '1n': '1',   // Whole note
+    '2n': '2',   // Half note
+    '4n': '4',   // Quarter note
+    '8n': '8',   // Eighth note
+    '8t': 't8',  // Triplet eighth note
+    '16n': '16'  // Sixteenth note
+  };
+  return durationMap[duration] || '4'; // Default to quarter note
+}
 // Event listener to export the melody as MIDI
 document.getElementById('exportMidiButton').addEventListener('click', () => {
   console.log("Export MIDI button clicked");
