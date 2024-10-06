@@ -10,19 +10,23 @@
 </head>
 <body>
 
-  <!-- Header -->
-  <header class="header">
-    <h1>Synthestesia</h1>
-  </header>
+
 
   <!-- Main Section -->
   <section class="form">
+      <!-- Header -->
+  <header class="form__header">
+    <h1>Synthestesia 0.2.0</h1>
+  </header>
     <textarea class="form__input" id="melodyString" rows="5" placeholder="Type some text to turn it into a melody..."></textarea>
 
     <div class="form__controls">
 
       <div class="form__buttons">
-        <button class="button button--play" id="playButton">Play Melody</button>
+        <span class="play-stop-wrapper">
+          <button class="button button--play" id="playButton">▶</button>
+          <button class="button button--stop" id="stopButton">◼</button>
+        </span>
         <button class="button button--export" id="exportMidiButton">Export as MIDI</button>
       </div>
       <div class="form__bpm-wrapper">
