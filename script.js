@@ -77,34 +77,14 @@ function handlePunctuation(char) {
       return { note: null, duration: '1n' };
     case '-':
       return { note: null, duration: '2n' }; 
-    case '...':
-      return { note: null, duration: '3n' }; 
     case '.':
       return { note: null, duration: '4n' }; 
-    case '/':
-      return { note: null, duration: '5n' }; 
-    case '?':
-      return { note: null, duration: '6n' }; 
-    case '!':
-      return { note: null, duration: '7n' }; 
-    case '"':
-      return { note: null, duration: '8n' };
     case '&':
-      return { note: null, duration: '9n' };
-    case '$':
-      return { note: null, duration: '10n' };
-    case '%':
-      return { note: null, duration: '11n' };
-    case '#':
-      return { note: null, duration: '12n' };       
-    case '*':
-      return { note: null, duration: '13n' };   
-    case '=':
-      return { note: null, duration: '14n' };
-    case '+':
-      return { note: null, duration: '14n' };  
-    case '^':
-      return { note: null, duration: '16n' };    
+      return { note: null, duration: '8n' };
+    case '?':
+      return { note: null, duration: '16n' };
+    case '!':
+      return { note: null, duration: '32n' };    
     default:
       return null;
   }
@@ -113,30 +93,30 @@ function handlePunctuation(char) {
 // Function to convert a string to a melody
 function stringToMelody(str) {
   const melody = [];
-  let isChordGroup = false;
-  let chordWords = [];
+  const segments = str.split(/(\([^)]+\))/); // Split the string by chords (parentheses)
 
-  const words = str.split(/\s+/); // Split the string into words
-
-  words.forEach((word) => {
-    if (word.startsWith('(')) {
-      isChordGroup = true; // Start chord group
-      chordWords = []; // Reset the chord group
-      word = word.replace('(', ''); // Remove the opening parenthesis
-    }
-
-    if (word.endsWith(')')) {
-      isChordGroup = false; // End chord group
-      word = word.replace(')', ''); // Remove the closing parenthesis
-      chordWords.push(word); // Add the last word of the chord group
-      processChordGroup(chordWords, melody); // Process the entire chord group
-      return;
-    }
-
-    if (isChordGroup) {
-      chordWords.push(word); // Add to chord group if still inside parentheses
+  segments.forEach(segment => {
+    if (segment.startsWith('(') && segment.endsWith(')')) {
+      // If the segment is a chord, remove the parentheses and process as a chord group
+      const chordWords = segment.slice(1, -1).split(/\s+/); // Remove parentheses and split by spaces
+      processChordGroup(chordWords, melody);
     } else {
-      processWord(word, melody); // Process normally if not in parentheses
+      // Otherwise, split the segment by spaces and process each word
+      const words = segment.split(/\s+/);
+      words.forEach(word => {
+        // If a word includes parentheses inside it, handle accordingly
+        const nestedSegments = word.split(/(\([^)]+\))/);
+
+        nestedSegments.forEach(nestedSegment => {
+          if (nestedSegment.startsWith('(') && nestedSegment.endsWith(')')) {
+            const chordWords = nestedSegment.slice(1, -1).split(/\s+/); // Process inner chords
+            processChordGroup(chordWords, melody);
+          } else {
+            // Process as a normal word
+            processWord(nestedSegment, melody);
+          }
+        });
+      });
     }
   });
 
@@ -185,7 +165,19 @@ function stopMelody() {
 
 // Function to get duration based on word length
 function getDurationForWordLength(length) {
-  return `${length}n`;  // Return duration as 'lengthn', e.g., 4n, 8n, etc.
+  if (length === 1) {
+    return '1n'; // Whole note
+  } else if (length <= 2) {
+    return '2n'; // Half note
+  } else if (length <= 4) {
+    return '4n'; // Quarter note
+  } else if (length <= 8) {
+    return '8n'; // Eighth note
+  } else if (length <= 16) {
+    return '16n'; // Sixteenth note
+  } else {
+    return '32n'; // Thirty-second note
+  }
 }
 
 // Event listener to play melody when button is clicked
@@ -259,16 +251,9 @@ function exportMelodyToMIDI(melody, bpm) {
 
 // Convert Tone.js durations to MIDI-compatible durations
 function convertToMidiDuration(duration) {
-  const durationMap = {
-    '1n': '1',   // Whole note
-    '2n': '2',   // Half note
-    '4n': '4',   // Quarter note
-    '8n': '8',   // Eighth note
-    '8t': 't8',  // Triplet eighth note
-    '16n': '16'  // Sixteenth note
-  };
-  return durationMap[duration] || '4'; // Default to quarter note
+  return duration; // Return the duration directly
 }
+
 // Event listener to export the melody as MIDI
 document.getElementById('exportMidiButton').addEventListener('click', () => {
   console.log("Export MIDI button clicked");
