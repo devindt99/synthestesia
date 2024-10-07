@@ -1,3 +1,10 @@
+// Import Midi from @tonejs/midi
+import { Midi } from '@tonejs/midi';
+import * as Tone from 'tone';
+
+// Define your PPQ (Pulses Per Quarter) for MIDI
+const PPQ = 480; // Common value, adjust as needed
+
 // Mapping QWERTY keys to notes
 const noteMap = {
   'q': 'C5', 'w': 'D5', 'e': 'E5', 'r': 'F5', 't': 'G5', 'y': 'A5', 'u': 'B5', 'i': 'C6', 'o': 'D6', 'p': 'E6',
@@ -5,70 +12,74 @@ const noteMap = {
   'z': 'C3', 'x': 'D3', 'c': 'E3', 'v': 'F3', 'b': 'G3', 'n': 'A3', 'm': 'B4'
 };
 
-// Function to process individual words (outside parentheses)
-function processWord(word, melody) {
-  let cleanedWord = word.replace(/[^a-zA-Z]/g, ''); // Remove punctuation to calculate word length
-  let duration = getDurationForWordLength(cleanedWord.length); // Determine duration based on word length
 
-  // Process each character in the word (notes)
+const bpm = parseInt(document.getElementById('bpmInput').value, 10);
+console.log("BPM: " + bpm);
+
+// Create a new PolySynth instance for playing notes
+const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+
+// Function to get ticks per note duration based on BPM
+function getDurationInTicks(duration, bpm) {
+  const quarterNoteTicks = (60 / bpm) * PPQ;
+  // Ensure duration is always positive and non-zero
+  console.log(Math.max(quarterNoteTicks * (4 / duration), 1)); 
+  return Math.max(quarterNoteTicks * (4 / duration), 1); // Default to 1 tick if too small
+}
+
+function getDurationForWordLength(length, bpm) {
+  const baseDuration = length === 1 ? 1 : length;
+  const ticks = getDurationInTicks(baseDuration, bpm);
+  console.log(`Length: ${length}, BPM: ${bpm}, Calculated Ticks: ${ticks}`);
+  return ticks;
+}
+// Function to process individual words (outside parentheses)
+function processWord(word, melody, bpm) {
+  let duration = getDurationForWordLength(word.replace(/[^a-zA-Z]/g, '').length, bpm);
+
   for (let i = 0; i < word.length; i++) {
     let char = word[i];
-
-    // Handle punctuation as rests
     const rest = handlePunctuation(char);
     if (rest) {
-      melody.push(rest); // Add the rest to the melody
-      continue; // Move to the next character
+      melody.push({ note: null, duration: getDurationInTicks(rest.duration, bpm) });
+      continue;
     }
 
-    // Check if it's a valid note character
     let note = noteMap[char.toLowerCase()];
     if (!note) continue;
 
-    // Handle sharps (') and flats (,)
     if (word[i + 1] === "'") {
-      note = Tone.Frequency(note).transpose(1).toNote(); // Sharp
-      i++; // Move past the sharp symbol
+      note = Tone.Frequency(note).transpose(1).toNote();
+      i++;
     } else if (word[i + 1] === ',') {
-      note = Tone.Frequency(note).transpose(-1).toNote(); // Flat
-      i++; // Move past the flat symbol
+      note = Tone.Frequency(note).transpose(-1).toNote();
+      i++;
     }
 
-    const velocity = char === char.toUpperCase() ? 1 : 0.5;
-
-    melody.push({ note, velocity, duration });
+    melody.push({ note, duration });
   }
 }
-// Function to process chord groups (words inside parentheses)
-function processChordGroup(chordWords, melody) {
-  // Calculate the duration for each item based on the number of items in the group
-  const numItems = chordWords.length;
-  const duration = getDurationForWordLength(numItems); // Use the same duration logic as for individual words
 
+// Function to process chord groups (words inside parentheses)
+function processChordGroup(chordWords, melody, bpm) {
+  const duration = getDurationForWordLength(chordWords.length, bpm);
   chordWords.forEach(word => {
     let notes = [];
-
     for (let i = 0; i < word.length; i++) {
       let char = word[i];
-
-      // Check for rests within the chord
       const rest = handlePunctuation(char);
       if (rest) {
-        // Push the current notes as a chord if there are any accumulated notes
         if (notes.length > 0) {
-          melody.push({ note: notes, duration: duration, velocity: 0.8 });
-          notes = []; // Reset the notes array for the next chord
+          melody.push({ note: notes, duration });
+          notes = [];
         }
-        // Add the rest directly to the melody
-        melody.push({ note: null, duration: rest.duration });
-        continue; // Continue to the next character in the word
+        melody.push({ note: null, duration: getDurationInTicks(rest.duration, bpm) });
+        continue;
       }
 
-      // Process notes and add them to the 'notes' array to form a chord
       let note = noteMap[char.toLowerCase()];
       if (!note) continue;
 
-      // Handle sharps (') and flats (,)
       if (word[i + 1] === "'") {
         note = Tone.Frequency(note).transpose(1).toNote();
         i++;
@@ -77,183 +88,71 @@ function processChordGroup(chordWords, melody) {
         i++;
       }
 
-      notes.push(note); // Add the note to the current chord
+      notes.push(note);
     }
 
-    // Push any remaining notes as a chord if there are any left at the end
     if (notes.length > 0) {
-      melody.push({ note: notes, duration: duration, velocity: 0.8 });
+      melody.push({ note: notes, duration });
     }
   });
 }
 
 function handlePunctuation(char) {
   switch (char) {
-    case '—':
-      return { note: null, duration: '1n' };
-    case '-':
-      return { note: null, duration: '2n' }; 
-    case '.':
-      return { note: null, duration: '4n' }; 
-    case '&':
-      return { note: null, duration: '8n' };
-    case '?':
-      return { note: null, duration: '16n' };
-    case '!':
-      return { note: null, duration: '32n' };    
-    default:
-      return null;
+    case '–': return { note: null, duration: 960 }; // half note rest
+    case '-': return { note: null, duration: 960 }; // half note rest
+    case '.': return { note: null, duration: 480 }; // quarter note rest
+    case '&': return { note: null, duration: 240 }; // eighth note rest
+    case '?': return { note: null, duration: 120 }; // sixteenth note rest
+    case '!': return { note: null, duration: 60 };  // thirty-second note rest
+    default: return null;
   }
 }
 
-// Function to convert a string to a melody
-function stringToMelody(str) {
+function stringToMelody(str, bpm) {
   const melody = [];
-  const segments = str.split(/(\([^)]+\))/); // Split the string by chords (parentheses)
+  const segments = str.split(/(\([^)]+\))/);
 
   segments.forEach(segment => {
-    if (segment.startsWith('(') && segment.endsWith(')')) {
-      // If the segment is a chord, remove the parentheses and process as a chord group
-      const chordWords = segment.slice(1, -1).split(/\s+/); // Remove parentheses and split by spaces
-      processChordGroup(chordWords, melody);
-    } else {
-      // Otherwise, split the segment by spaces and process each word
-      const words = segment.split(/\s+/);
-      words.forEach(word => {
-        // If a word includes parentheses inside it, handle accordingly
-        const nestedSegments = word.split(/(\([^)]+\))/);
-
-        nestedSegments.forEach(nestedSegment => {
-          if (nestedSegment.startsWith('(') && nestedSegment.endsWith(')')) {
-            const chordWords = nestedSegment.slice(1, -1).split(/\s+/); // Process inner chords
-            processChordGroup(chordWords, melody);
-          } else {
-            // Process as a normal word
-            processWord(nestedSegment, melody);
-          }
-        });
-      });
-    }
+      if (segment.startsWith('(') && segment.endsWith(')')) {
+          const chordWords = segment.slice(1, -1).split(/\s+/);
+          processChordGroup(chordWords, melody, bpm); // Pass bpm here
+      } else {
+          const words = segment.split(/\s+/);
+          words.forEach(word => processWord(word, melody, bpm)); // Pass bpm here
+      }
   });
 
   return melody;
 }
 
-// Create the synth globally so it's reused
-const synth = new Tone.PolySynth(Tone.Synth).toDestination();
 
-// Function to play the melody using Tone.Transport for accurate timing
-function playMelody(melody, bpm) {
-  // Clear existing scheduled events and reset the transport position
-  console.log("Clearing scheduled events and resetting transport");
-  Tone.Transport.cancel();
-  Tone.Transport.position = 0; // Reset the transport position to the beginning
-
-  // Set the BPM
-  console.log("Setting BPM:", bpm);
-  Tone.Transport.bpm.value = bpm;
-  let currentTime = 0;
-
-  melody.forEach((item) => {
-    if (item.note === null) {
-      currentTime += Tone.Time(item.duration).toSeconds(); // Rest for the duration
-    } else {
-      console.log("Scheduling note:", item.note, "Duration:", item.duration, "Time:", currentTime);
-      // Schedule the note using Tone.Transport
-      Tone.Transport.schedule((time) => {
-        synth.triggerAttackRelease(item.note, item.duration, time, item.velocity);
-      }, currentTime);
-      currentTime += Tone.Time(item.duration).toSeconds(); // Accumulate time based on duration
-    }
-  });
-
-  // Start the transport
-  console.log("Starting transport");
-  Tone.Transport.start();
-}
-
-// Function to stop the melody
-function stopMelody() {
-  console.log("Stopping and clearing transport");
-  Tone.Transport.stop();
-  Tone.Transport.cancel(); // Clear any remaining events
-}
-
-// Function to get duration based on word length
-function getDurationForWordLength(length) {
-  if (length === 1) {
-    return '1n'; // Whole note
-  } else if (length <= 2) {
-    return '2n'; // Half note
-  } else if (length <= 4) {
-    return '4n'; // Quarter note
-  } else if (length <= 8) {
-    return '8n'; // Eighth note
-  } else if (length <= 16) {
-    return '16n'; // Sixteenth note
-  } else {
-    return '32n'; // Thirty-second note
-  }
-}
-
-// Event listener to play melody when button is clicked
-document.getElementById('playButton').addEventListener('click', async () => {
-  console.log("Play button clicked");
-
-  // Ensure the AudioContext is resumed (handles the autoplay restriction)
-  if (Tone.context.state !== 'running') {
-    await Tone.start();
-    console.log("Tone.js AudioContext started");
-  }
-
-  // Get the input string and BPM
-  const inputString = document.getElementById('melodyString').value;
-  const bpm = parseInt(document.getElementById('bpmInput').value, 10);
-
-  console.log("Input String:", inputString);
-  console.log("BPM:", bpm);
-
-  // Convert the string to a melody
-  const melody = stringToMelody(inputString);
-  console.log("Generated Melody:", melody);
-  stopMelody;
-  // Play the generated melody
-  playMelody(melody, bpm);
-});
-
-// Event listener for the stop button to stop the melody
-document.getElementById('stopButton').addEventListener('click', () => {
-  console.log("Stop button clicked");
-  stopMelody();
-});
-
-// Function to export the melody as MIDI, adding rests using the wait attribute
+// Function to export melody as MIDI
 function exportMelodyToMIDI(melody, bpm) {
-  const track = new MidiWriter.Track();
-  track.setTempo(bpm);
+  const midi = new Midi();
+  const track = midi.addTrack();
+  midi.header.setTempo(bpm);
 
-  let accumulatedWait = []; // For accumulated rests
-  melody.forEach((item) => {
-    const duration = convertToMidiDuration(item.duration);
+  let currentTime = 0;
+  melody.forEach(item => {
+    const durationTicks = item.duration;
 
-    // Check if the item is a rest
-    if (item.note === null) {
-      // If it’s a rest, accumulate its duration in the wait attribute
-      accumulatedWait.push(duration);
-    } else {
-      // If it’s a note, include any accumulated rests before the note
-      track.addEvent(new MidiWriter.NoteEvent({
-        pitch: item.note,
-        duration: duration,
-        wait: accumulatedWait, // Wait for any accumulated rests
-      }));
-      accumulatedWait = []; // Reset accumulated rests after a note
+    if (item.note) {
+      const notes = Array.isArray(item.note) ? item.note : [item.note];
+      notes.forEach(note => {
+        track.addNote({
+          name: note,
+          time: currentTime,
+          duration: durationTicks,
+          velocity: item.velocity || 0.8,
+        });
+      });
     }
+    currentTime += durationTicks;
   });
 
-  const write = new MidiWriter.Writer(track);
-  const midiData = write.buildFile();
-  const blob = new Blob([midiData], { type: 'audio/midi' });
+  const midiData = midi.toArray();
+  const blob = new Blob([new Uint8Array(midiData)], { type: 'audio/midi' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -263,35 +162,66 @@ function exportMelodyToMIDI(melody, bpm) {
   document.body.removeChild(a);
 }
 
-// Convert Tone.js durations to MIDI-compatible durations by removing the 'n'
-function convertToMidiDuration(duration) {
-  // Remove the 'n' from the duration string
-  const midiDuration = duration.replace('n', '');
-  
-  // Check if the duration is valid
-  if (!['1', '2', '4', '8', '16', '32'].includes(midiDuration)) {
-    console.error(`Unexpected duration value encountered: ${midiDuration}`);
-    return '4'; // Default to quarter note if unrecognized
-  }
-  
-  return midiDuration;
+
+
+function playMelody(melody, bpm) {
+  Tone.Transport.stop();
+  Tone.Transport.cancel();
+  Tone.Transport.position = 0;
+  Tone.Transport.bpm.value = bpm;
+
+  let currentTime = 0;
+
+  melody.forEach((item) => {
+    if (item.note === null) {
+      // For rests, advance by the duration without scheduling any notes
+      const restDurationInSeconds = (item.duration / PPQ) * (60 / bpm);
+      console.log(`Rest: advancing time by ${restDurationInSeconds} seconds`);
+      currentTime += restDurationInSeconds;
+    } else {
+      const durationInSeconds = (item.duration / PPQ) * (60 / bpm);
+      Tone.Transport.schedule((time) => {
+        synth.triggerAttackRelease(item.note, durationInSeconds, time);
+      }, currentTime);
+
+      currentTime += durationInSeconds;
+    }
+  });
+
+  Tone.Transport.start();
 }
 
-// Event listener to export the melody as MIDI
-document.getElementById('exportMidiButton').addEventListener('click', () => {
-  console.log("Export MIDI button clicked");
 
-  // Get the input string and BPM
+console.log("updated");
+// Function to stop the melody
+function stopMelody() {
+  Tone.Transport.stop(); // Stop playback
+  Tone.Transport.cancel(); // Clear all scheduled events
+  Tone.Transport.position = 0; // Reset position
+}
+
+// Event listeners for play and stop buttons
+document.getElementById('playButton').addEventListener('click', async () => {
+  if (Tone.context.state !== 'running') {
+    await Tone.start(); // Ensure AudioContext is resumed
+  }
+
   const inputString = document.getElementById('melodyString').value;
   const bpm = parseInt(document.getElementById('bpmInput').value, 10);
 
-  console.log("Input String for MIDI:", inputString);
-  console.log("BPM for MIDI:", bpm);
+  // Pass bpm to stringToMelody
+  const melody = stringToMelody(inputString, bpm);
 
-  // Convert the string to a melody
-  const melody = stringToMelody(inputString);
-  console.log("Generated Melody for MIDI:", melody);
+  playMelody(melody, bpm); // Play the melody with bpm
+});
 
-  // Export the melody as MIDI (implementation stays the same)
+
+document.getElementById('stopButton').addEventListener('click', stopMelody);
+
+// Event listener to export the melody as MIDI
+document.getElementById('exportMidiButton').addEventListener('click', () => {
+  const bpm = parseInt(document.getElementById('bpmInput').value, 10);
+  const inputString = document.getElementById('melodyString').value;
+  const melody = stringToMelody(inputString, bpm);
   exportMelodyToMIDI(melody, bpm);
 });
