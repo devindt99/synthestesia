@@ -39,37 +39,53 @@ function processWord(word, melody) {
     melody.push({ note, velocity, duration });
   }
 }
-
 // Function to process chord groups (words inside parentheses)
 function processChordGroup(chordWords, melody) {
-  const chordDuration = `${chordWords.length}n`; // Chord duration is based on the number of words
-  const chords = chordWords.map(word => {
-    const notes = [];
+  // Calculate the duration for each item based on the number of items in the group
+  const numItems = chordWords.length;
+  const duration = getDurationForWordLength(numItems); // Use the same duration logic as for individual words
+
+  chordWords.forEach(word => {
+    let notes = [];
+
     for (let i = 0; i < word.length; i++) {
       let char = word[i];
-      let note = noteMap[char.toLowerCase()];
-      if (!note) continue;
-      
-      // Handle sharps (') and flats (,)
-      if (word[i + 1] === "'") {
-        note = Tone.Frequency(note).transpose(1).toNote(); // Sharp
-        i++; // Move past the sharp symbol
-      } else if (word[i + 1] === ',') {
-        note = Tone.Frequency(note).transpose(-1).toNote(); // Flat
-        i++; // Move past the flat symbol
+
+      // Check for rests within the chord
+      const rest = handlePunctuation(char);
+      if (rest) {
+        // Push the current notes as a chord if there are any accumulated notes
+        if (notes.length > 0) {
+          melody.push({ note: notes, duration: duration, velocity: 0.8 });
+          notes = []; // Reset the notes array for the next chord
+        }
+        // Add the rest directly to the melody
+        melody.push({ note: null, duration: rest.duration });
+        continue; // Continue to the next character in the word
       }
 
-      notes.push(note); // Add note to chord
-    }
-    return notes;
-  });
+      // Process notes and add them to the 'notes' array to form a chord
+      let note = noteMap[char.toLowerCase()];
+      if (!note) continue;
 
-  // Add chords to the melody with the appropriate duration
-  chords.forEach(chord => {
-    melody.push({ note: chord, duration: chordDuration, velocity: 0.8 });
+      // Handle sharps (') and flats (,)
+      if (word[i + 1] === "'") {
+        note = Tone.Frequency(note).transpose(1).toNote();
+        i++;
+      } else if (word[i + 1] === ',') {
+        note = Tone.Frequency(note).transpose(-1).toNote();
+        i++;
+      }
+
+      notes.push(note); // Add the note to the current chord
+    }
+
+    // Push any remaining notes as a chord if there are any left at the end
+    if (notes.length > 0) {
+      melody.push({ note: notes, duration: duration, velocity: 0.8 });
+    }
   });
 }
-
 
 function handlePunctuation(char) {
   switch (char) {
@@ -214,28 +230,27 @@ document.getElementById('stopButton').addEventListener('click', () => {
 // Function to export the melody as MIDI, adding rests using the wait attribute
 function exportMelodyToMIDI(melody, bpm) {
   const track = new MidiWriter.Track();
-
-  // Set the tempo
   track.setTempo(bpm);
 
-  let accumulatedWait = [];  // To accumulate multiple rest durations
-
+  let accumulatedWait = []; // For accumulated rests
   melody.forEach((item) => {
+    const duration = convertToMidiDuration(item.duration);
+
+    // Check if the item is a rest
     if (item.note === null) {
-      // Add the rest duration to the accumulatedWait
-      accumulatedWait.push(convertToMidiDuration(item.duration));
-    } else if (Array.isArray(item)) {
-      const notes = item.map(n => n.note);  // Keep the full note, including octave
-      track.addEvent(new MidiWriter.NoteEvent({ pitch: notes, duration: convertToMidiDuration(item[0].duration), wait: accumulatedWait }));
-      accumulatedWait = [];  // Reset the accumulatedWait after adding a note
+      // If it’s a rest, accumulate its duration in the wait attribute
+      accumulatedWait.push(duration);
     } else {
-      // Add a single note with the accumulated wait time
-      track.addEvent(new MidiWriter.NoteEvent({ pitch: item.note, duration: convertToMidiDuration(item.duration), wait: accumulatedWait }));
-      accumulatedWait = [];  // Reset the accumulatedWait after adding a note
+      // If it’s a note, include any accumulated rests before the note
+      track.addEvent(new MidiWriter.NoteEvent({
+        pitch: item.note,
+        duration: duration,
+        wait: accumulatedWait, // Wait for any accumulated rests
+      }));
+      accumulatedWait = []; // Reset accumulated rests after a note
     }
   });
 
-  // Create a write object and download the MIDI file
   const write = new MidiWriter.Writer(track);
   const midiData = write.buildFile();
   const blob = new Blob([midiData], { type: 'audio/midi' });
@@ -248,10 +263,18 @@ function exportMelodyToMIDI(melody, bpm) {
   document.body.removeChild(a);
 }
 
-
-// Convert Tone.js durations to MIDI-compatible durations
+// Convert Tone.js durations to MIDI-compatible durations by removing the 'n'
 function convertToMidiDuration(duration) {
-  return duration; // Return the duration directly
+  // Remove the 'n' from the duration string
+  const midiDuration = duration.replace('n', '');
+  
+  // Check if the duration is valid
+  if (!['1', '2', '4', '8', '16', '32'].includes(midiDuration)) {
+    console.error(`Unexpected duration value encountered: ${midiDuration}`);
+    return '4'; // Default to quarter note if unrecognized
+  }
+  
+  return midiDuration;
 }
 
 // Event listener to export the melody as MIDI
